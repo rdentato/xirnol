@@ -44,10 +44,18 @@ char *loadsource(char *fname)
 }
 
 #define trace(...) (fprintf(stderr,__VA_ARGS__),fputc('\n',stderr))
-void usage()
+void usage(char *prgname)
 {
-  fprintf(stderr,"Usage: kntest sourcefile\n");
-  fprintf(stderr,"  Parse kntest sourcefile\n");
+  char *s;
+  while(1) {
+    s=prgname;
+    while (*s && *s != '/') s++;
+    if (*s != '/' || s[1] == '\0') break;
+    prgname = s+1;
+  }
+  fprintf(stderr,"Usage: %s -e expression | -f sourcefile\n",prgname);
+  fprintf(stderr,"  Evaluate knight expressions\n");
+  fprintf(stderr,"(http://gh.rdentato.xirnol)\n");
   exit(1);
 }
 
@@ -114,20 +122,35 @@ int main(int argc, char *argv[])
   FILE *hdr=NULL;
   char *s;
   int trc =0;
+  int argn;
+  char *fname="_expr_";
 
-  if (argc<2) usage();
-
-  s = argv[1];
-
-  if (*s == '-' && s[1]=='t') {
-    trc = 1;
-    if (argc<3) usage();
-    s = argv[2];
+  if (argc < 2) usage(argv[0]);
+  argn = 1;
+  while (1) {
+    s = argv[argn];
+    if (*s == '-') {
+      if (s[1]=='t') {
+        trc = 1;
+        argn++;
+      }
+      else if (s[1] == 'f') {
+        if (++argn >= argc) usage(argv[0]);
+        fname = argv[argn];
+        knbuf = loadsource(argv[argn]);
+        break;
+      }
+      else if (s[1] == 'e') {
+        if (++argn >= argc) usage(argv[0]);
+        knbuf = strdup(argv[argn]);
+        break;
+      }
+      else usage(argv[0]);
+    }
+    else break; 
   }
 
-  knbuf = loadsource(s);
-
-  if (!knbuf) usage();
+  if (!knbuf) usage(argv[0]);
 
   ast = skpparse(knbuf,prog,trc);
 
@@ -144,7 +167,7 @@ int main(int argc, char *argv[])
     //trace("@: '%s'",asterrpos(ast));
   }
   else {
-    strcpy(bnamebuf,argv[1]);
+    strcpy(bnamebuf,fname);
     s=bnamebuf;
     while (*s) s++;
     while (s>bnamebuf && s[-1] != '.') s--;
