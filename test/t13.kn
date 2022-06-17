@@ -1,0 +1,6 @@
+; = x "abc"
+; = y SET x 0 1 "2"
+; = z SET x 1 1 3
+; OUT x
+; OUT y
+: OUT z
