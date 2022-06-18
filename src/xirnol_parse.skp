@@ -25,7 +25,7 @@
 
   skpfunc(func_0) {return 0+chkfunction("TFNPR",&skpcur); }
   skpfunc(func_1) {return 1+chkfunction("EQLDOA!`~",&skpcur); }
-  skpfunc(func_2) {return 2+chkfunction("-+*/%^<>?;",&skpcur); }
+  skpfunc(func_2) {return 2+chkfunction("-+*/%^<>?;&|",&skpcur); }
   skpfunc(func_3) {return 3+chkfunction("G",&skpcur); }
   skpfunc(func_4) {return 4+chkfunction("S",&skpcur); }
 
@@ -73,11 +73,11 @@ arity1 = block block_ret / call _<expr / func_1[] _<expr ;       %  ':' is consi
 
 call = _"'C'*[A-Z_]" ;
 
-block = _"'B'*[A-Z_]" _expr ;
+block = _"'B'*[A-Z_]" expr ;
 block_ret = {} ;
 
 % =, +, -, *, /, %, ^, <, >, ?, &, |, ;, WHILE
-arity2 = assign <assign_args / _while_ / _and_ / _or_ / func_2[] <args2 ;
+arity2 = assign <assign_args / while / _and_ / _or_ / func_2[] <args2 ;
 args2 = _expr _expr;
 
 % For assign, let's invert the arguments so that we will just drop the top
@@ -86,7 +86,7 @@ assign = _'=' ;
 assign_args = (__ varref / _expr) _<expr;
 varref = _variable[] ;
 
-while_ = _"'W'*[A-Z_]" _expr while_check _expr while_end ;
+while = _"'W'*[A-Z_]" _expr while_check expr while_end ;
 while_check = {} ;
 while_end = {} ;
 
@@ -115,4 +115,4 @@ number = _"+d" ;
 string_ = _quote[] string[] _quote[] ;
 
 EOF_        = __ _"!." ;
-_           =    (_"+s" / _"+[[({:})]]" / _"'#'N")* ;
+_           =    (_"+s" / _"+[][):(}{]" / _"'#'N")* ;

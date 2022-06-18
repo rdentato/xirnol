@@ -1,13 +1,8 @@
-#include <stdio.h>
-#include <stdint.h>
 #define DEBUG DEBUG_TEST
-#include "dbg.h"
 #define VAL_MAIN
-#include "val.h"
 #define SKP_MAIN
-#include "xirnol_parse.h"
 
-void generate(ast_t ast, FILE *src);
+#include "xirnol.h"
 
 /************************************/
 
@@ -15,7 +10,7 @@ void generate(ast_t ast, FILE *src);
 static char fnamebuf[MAXFNAME+8];
 static char bnamebuf[MAXFNAME];
 
-char *loadsource(char *fname)
+static char *loadsource(char *fname)
 {
   FILE *f;
   int32_t size=0;
@@ -44,7 +39,7 @@ char *loadsource(char *fname)
 }
 
 #define trace(...) (fprintf(stderr,__VA_ARGS__),fputc('\n',stderr))
-void usage(char *prgname)
+static void usage(char *prgname)
 {
   char *s;
   while(1) {
@@ -59,7 +54,7 @@ void usage(char *prgname)
   exit(1);
 }
 
-static inline int isvarchr(char c)
+static int isvarchr(char c)
 {
   return (c=='_') || (('a'<=c) && (c<='z'));
 }
@@ -81,7 +76,7 @@ int varcmp(const void *a, const void *b)
   return 0;
 }
 
-void fixvars(val_t v)
+static void fixvars(val_t v)
 {
   if (!valisvec(v) || valcount(v) == 0) return;
   val_t *arr;
@@ -112,7 +107,6 @@ void fixvars(val_t v)
 //  }
 }
 
-val_t kneval(ast_t ast);
 
 int main(int argc, char *argv[])
 {
@@ -150,7 +144,12 @@ int main(int argc, char *argv[])
     else break; 
   }
 
-  if (!knbuf) usage(argv[0]);
+  if (knbuf == NULL && argn<argc) {
+    fname = argv[argn];
+    knbuf = loadsource(fname);
+  }
+
+  if (knbuf == NULL) usage(argv[0]);
 
   ast = skpparse(knbuf,prog,trc);
 
@@ -163,8 +162,7 @@ int main(int argc, char *argv[])
     trace("Error: %s",asterrmsg(ast));
     trace("%.*s",(int)(endln-ln),ln);
     trace("%.*s^",col,"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-    //trace("Error '%s'",asterrmsg(ast));
-    //trace("@: '%s'",asterrpos(ast));
+    return 1;
   }
   else {
     strcpy(bnamebuf,fname);
@@ -179,7 +177,7 @@ int main(int argc, char *argv[])
       astprint(ast,hdr);
       fprintf(hdr,"%d nodes\n",astnumnodes(ast));
       fclose(hdr); hdr = NULL;
-      fprintf(stderr,"AST file: '%s'\n",fnamebuf);
+      //fprintf(stderr,"AST file: '%s'\n",fnamebuf);
       val_t v = *((val_t *)astaux(ast));
       if (v != valnil) {
         fixvars(v);
@@ -187,10 +185,11 @@ int main(int argc, char *argv[])
       }
     }
 
-    val_t retevl;
-    retevl = kneval(ast);
+    //val_t retevl;
+    //retevl = 
+    kneval(ast);
 
-   fprintf(stderr,"RET: %lX\n",retevl);
+   // fprintf(stderr,"RET: %lX\n",retevl);
     
 #if 0
     sprintf(fnamebuf,"%s"".c",bnamebuf);
@@ -216,4 +215,5 @@ int main(int argc, char *argv[])
     }
     astfree(ast);
   }
+  return 0;
 }
