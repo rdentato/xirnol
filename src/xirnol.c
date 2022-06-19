@@ -1,6 +1,8 @@
 #define DEBUG DEBUG_TEST
 #define VAL_MAIN
 #define SKP_MAIN
+#define VRG_MAIN
+#include "vrg.h"
 
 #include "xirnol.h"
 
@@ -39,20 +41,6 @@ static char *loadsource(char *fname)
 }
 
 #define trace(...) (fprintf(stderr,__VA_ARGS__),fputc('\n',stderr))
-static void usage(char *prgname)
-{
-  char *s;
-  while(1) {
-    s=prgname;
-    while (*s && *s != '/') s++;
-    if (*s != '/' || s[1] == '\0') break;
-    prgname = s+1;
-  }
-  fprintf(stderr,"Usage: %s -e expression | -f sourcefile\n",prgname);
-  fprintf(stderr,"  Evaluate knight expressions\n");
-  fprintf(stderr,"(http://gh.rdentato.xirnol)\n");
-  exit(1);
-}
 
 static int isvarchr(char c)
 {
@@ -116,40 +104,36 @@ int main(int argc, char *argv[])
   FILE *hdr=NULL;
   char *s;
   int trc =0;
-  int argn;
+  //int argn;
   char *fname="_expr_";
 
-  if (argc < 2) usage(argv[0]);
-  argn = 1;
-  while (1) {
-    s = argv[argn];
-    if (*s == '-') {
-      if (s[1]=='t') {
-        trc = 1;
-        argn++;
-      }
-      else if (s[1] == 'f') {
-        if (++argn >= argc) usage(argv[0]);
-        fname = argv[argn];
-        knbuf = loadsource(argv[argn]);
-        break;
-      }
-      else if (s[1] == 'e') {
-        if (++argn >= argc) usage(argv[0]);
-        knbuf = strdup(argv[argn]);
-        break;
-      }
-      else usage(argv[0]);
+  vrgver("xirnol (a knight interpeter)\nv0.0.7-beta (C) 2022 Remo Dentato http://gh/dentato.com/xirnol");
+
+  vrgoptions(argc,argv) {
+    vrgopt("-t       ","Enable tracing in parser") {
+      trc = 1;
     }
-    else break; 
+
+    vrgopt("-f filename", "Run source file") {
+        fname = vrgoptarg;
+        knbuf = loadsource(fname);
+    }
+
+    vrgopt("-e 'expr'", "Evaluate expression") {
+        knbuf = strdup(vrgoptarg);
+    }
+
+    vrgopt("-h       ", "Print help and exit") {
+        vrghelp();
+    }
   }
 
-  if (knbuf == NULL && argn<argc) {
-    fname = argv[argn];
+  if (knbuf == NULL && vrgargn<argc) {
+    fname = argv[vrgargn];
     knbuf = loadsource(fname);
   }
 
-  if (knbuf == NULL) usage(argv[0]);
+  if (knbuf == NULL) vrgerror("Missing file or expression");
 
   ast = skpparse(knbuf,prog,trc);
 
