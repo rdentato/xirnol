@@ -222,16 +222,18 @@ int vrg_isopt(char *opt)
       if (arg[arg_ndx])
         vrgoptarg = arg+arg_ndx;
       else if (vrgargn+1 < vrg_argc) {
-        if (vrg_argv[vrgargn+1][0] != '-')
+        // if (vrg_argv[vrgargn+1][0] != '-')
           vrgoptarg = vrg_argv[++vrgargn];
       }
-      if (vrgoptarg == NULL) vrgoptarg = "";
 
      _dbgtrc("OPT USE ARG: '%s'",vrgoptarg);
 
-      if (*vrgoptarg == '\0' && opt[opt_ndx] != '[')  {
-        errno = vrg_err(opt);
-        ret = 0;
+      if (vrgoptarg == NULL) {
+          if (opt[opt_ndx] != '[')  {
+            errno = vrg_err(opt);
+            ret = 0;
+          }
+          vrgoptarg = "";
       }
     }
     vrglen = ret;
