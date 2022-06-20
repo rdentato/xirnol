@@ -3,7 +3,7 @@ SKP = $(TOP)/libs/bin/skpgen
 INCDIR = $(TOP)/libs/src
 CC = gcc
 
-CFLAGS =  -O2 -Wall -I $(INCDIR) -DDEBUG=DEBUG_TEST
+CFLAGS =  -O2 -Wall -I $(INCDIR) -DDEBUG=DEBUG_TEST -DVRGMAXOPTS=4
 
 %.o : %.c
 	$(CC) $(CFLAGS) -c $<

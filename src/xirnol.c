@@ -107,24 +107,25 @@ int main(int argc, char *argv[])
   //int argn;
   char *fname="_expr_";
 
-  vrgver("xirnol (a knight interpeter)\nv0.0.7-beta (C) 2022 Remo Dentato http://gh/dentato.com/xirnol");
+  vrgver("xirnol (a knight interpeter)\n"
+         "v0.0.7-beta (C) 2022 Remo Dentato http://gh.dentato.com/xirnol");
 
   vrgoptions(argc,argv) {
-    vrgopt("-t       ","Enable tracing in parser") {
+    vrgopt("-h\tPrint help and exit") {
+      vrghelp();
+    }
+    
+    vrgopt("-f filename\tRun source file") {
+      fname = vrgoptarg;
+      knbuf = loadsource(fname);
+    }
+
+    vrgopt("-e 'expr'\tEvaluate expression") {
+      knbuf = strdup(vrgoptarg);
+    }
+
+    vrgopt("-t\tEnable tracing in parser") {
       trc = 1;
-    }
-
-    vrgopt("-f filename", "Run source file") {
-        fname = vrgoptarg;
-        knbuf = loadsource(fname);
-    }
-
-    vrgopt("-e 'expr'", "Evaluate expression") {
-        knbuf = strdup(vrgoptarg);
-    }
-
-    vrgopt("-h       ", "Print help and exit") {
-        vrghelp();
     }
   }
 
