@@ -227,6 +227,14 @@ static void dofunc_1(eval_env_t *env, char f)
                retval(env->stack,1,valnil);
                break;
 
+    case 'V' : n = -1;
+               if (isstring(a)) n = findvar(env->vars, cast2str(a,num));
+               if (n >= 0)
+                 retval(env->stack,1,valget(env->vars_val,val(n)));
+               else
+                 retval(env->stack,1,valnil);
+               break;
+
     case '`' : { char *cmd;
                  char num[20];
                  cmd = cast2str(a,num);

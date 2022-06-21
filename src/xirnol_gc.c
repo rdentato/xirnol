@@ -54,10 +54,10 @@ void gccycle(eval_env_t *env)
       }
       else { // Move to free list
         *parent = valaux(child); // Remove from list
-        valaux(child,env->bufs_free);
+        env->bufs_list_len--;
+        valaux(child,env->bufs_free); // Add to the free list
         valcount(child,0);
         env->bufs_free = child;
-        env->bufs_list_len--;
       }
     }
 

@@ -3,4 +3,6 @@ An implementation of the [`knight` programming language](https://github.com/knig
 
 WHile still usable as a general purpose `knight` interpreter, its purpose is to serve as an example for the `skp` (text matching/parsing) and `val` (NaNboxed values) libraries which you can find in the `libs` directory.
 
+It currently lacks support for the `EVAL` function and there is no plan to add it.
+
 The name is a lojban cmene (proper noun) related to the word *xirno'i* which means "knighted noble" (as opposed to *xirsoi* which means cavalryman).
