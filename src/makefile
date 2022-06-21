@@ -10,8 +10,10 @@ CFLAGS =  -O2 -Wall -I $(INCDIR) -DDEBUG=DEBUG_TEST -DVRGMAXOPTS=4
 
 all: skpgen xirnol knight
 
-xirnol: xirnol_parse.o xirnol_walk.o xirnol.o
-	$(CC) -s -o $@ xirnol_parse.o xirnol_walk.o xirnol.o
+XIRNOL_OBJS = xirnol_parse.o xirnol_walk.o xirnol_gc.o xirnol.o
+
+xirnol: $(XIRNOL_OBJS)
+	$(CC) -s -o $@ $(XIRNOL_OBJS)
 
 knight: xirnol
 	cp xirnol knight

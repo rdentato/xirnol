@@ -50,11 +50,12 @@ static val_t addbuf(eval_env_t *env)
 {
   val_t buf;
  _dbgtrc("ADDING BUF");
+  gccycle(env);
   if (env->bufs_free != valnil) {
     buf = env->bufs_free;
-   _dbgtrc("RECYCLING %lX",buf);
+   _dbgtrc("RECYCLING %lX (s:%d c:%d)",buf,valsize(buf),valcount(buf));
     env->bufs_free = valaux(buf);
-    valaux(buf,valnil);
+    valcount(buf,0);
   }
   else {
     buf = valbuf(20);
@@ -63,6 +64,7 @@ static val_t addbuf(eval_env_t *env)
 
   valaux(buf,env->bufs);
   env->bufs = buf;
+  env->bufs_list_len++;
   return buf;
 }
 
@@ -138,13 +140,19 @@ static val_t isequal(val_t a, val_t b)
   return n?valtrue:valfalse;
 }
 
+static void retval(val_t stack,int32_t del, val_t ret)
+{
+  if (del>0) valdrop(stack,del);
+  valpush(stack,ret);
+}
+
 static void dofunc_0(eval_env_t *env, char f)
 {
   switch (f) {
-    case 'T' : valpush(env->stack,valtrue);  break;
-    case 'N' : valpush(env->stack,valnil);   break;
-    case 'F' : valpush(env->stack,valfalse); break;
-    case 'R' : valpush(env->stack,val(rand() & 0x7FFF)); break;
+    case 'T' : retval(env->stack,0,valtrue);  break;
+    case 'N' : retval(env->stack,0,valnil);   break;
+    case 'F' : retval(env->stack,0,valfalse); break;
+    case 'R' : retval(env->stack,0,val(rand() & 0x7FFF)); break;
     case 'P' : { val_t prompt = addbuf(env);
                  int k = valbufgets(prompt,stdin);
                  char *arr=valtostr(prompt);
@@ -153,7 +161,7 @@ static void dofunc_0(eval_env_t *env, char f)
                    valcount(prompt,k);
                  }
                 _dbgtrc("PROMPT: k=%d",k);
-                 valpush(env->stack,prompt);
+                 retval(env->stack,0,prompt);
                }
   }
 }
@@ -178,53 +186,48 @@ static void dofunc_1(eval_env_t *env, char f)
                else if (isstring(a)) printf("String(%s)\n",valtostr(a));
                break;
 
-    case '~' : valdrop(env->stack);
-               n = -valtoint(a);
-               valpush(env->stack,val(n));
+    case '~' : n = -valtoint(a);
+               retval(env->stack,1,val(n));
                break;
 
-    case '!' : valdrop(env->stack);
+    case '!' : 
                if (valisstr(a)) {
                  n = valtostr(a)[0];
                }
                else n = valtoint(a);
               _dbgtrc("!:%d",n);
-               valpush(env->stack,n ? valfalse : valtrue);
+               retval(env->stack,1,n ? valfalse : valtrue);
                break;
 
-    case 'L' : valdrop(env->stack);
-               n = strlen(cast2str(a,num));
+    case 'L' : n = strlen(cast2str(a,num));
                if (n<0) n = 0;
-               valpush(env->stack,val(n));
+               retval(env->stack,1,val(n));
                break;
 
-    case 'A' : valdrop(env->stack);
-               if (valisint(a)) {
+    case 'A' : if (valisint(a)) {
                  n = valtoint(a);
                  val_t buf = addbuf(env);
                  valset(buf,val(0),val(n));
                  valset(buf,val(1),val(0));
-                 valpush(env->stack,buf);
+                 retval(env->stack,1,buf);
                }
                else if (isstring(a)) {
                  n = *valtostr(a);
-                 valpush(env->stack, val(n));
+                 retval(env->stack, 1, val(n));
                }
                else die("Only string or number allowed for A");
                break;
 
-    case 'O' : valdrop(env->stack);
-               p = cast2str(a,num);
+    case 'O' : p = cast2str(a,num);
                n = strlen(p);
                if (n>0 && p[n-1] == '\\') n--;
                fprintf(stdout, "%.*s",n,p); 
                if (p[n] != '\\') fputc('\n',stdout);
                fflush(stdout);
-               valpush(env->stack,valnil);
+               retval(env->stack,1,valnil);
                break;
 
-    case '`' : valdrop(env->stack);
-               { char *cmd;
+    case '`' : { char *cmd;
                  char num[20];
                  cmd = cast2str(a,num);
                  if (*cmd) {
@@ -235,9 +238,9 @@ static void dofunc_1(eval_env_t *env, char f)
                      valbufreadfile(buf,fp);
                     _dbgtrc("Shell Result (%d):\n%s\n",valcount(buf),valtostr(buf));
                      pclose(fp);
-                     valpush(env->stack,buf);
+                     retval(env->stack,1,buf);
                  }
-                 else valpush(env->stack, valnilstr);
+                 else retval(env->stack, 1, valnilstr);
                }
                break;
   }
@@ -250,7 +253,6 @@ static void dofunc_2(eval_env_t *env, char f)
 
   a = valtop(env->stack,-2);
   b = valtop(env->stack);
-  valdrop(env->stack,2);
                
   switch (f) {
 
@@ -261,14 +263,14 @@ static void dofunc_2(eval_env_t *env, char f)
                  val_t buf = addbuf(env);
                  valbufcpy(buf,valtostr(a));
                  valbufcat(buf,p);
-                 valpush(env->stack,buf);
+                 retval(env->stack,2,buf);
                }
-               else if (valisint(a)) valpush(env->stack, val(valtoint(a) + valtoint(b)));
+               else if (valisint(a)) retval(env->stack, 2, val(valtoint(a) + valtoint(b)));
                else die("First argument of addition must be a number or a string");
                break;
 
     case '-' : if (!valisint(a)) die("Subtraction only accepts numbers as first argument");
-               valpush(env->stack, val(valtoint(a) - cast2int(b)));
+               retval(env->stack, 2, val(valtoint(a) - cast2int(b)));
                break;
 
     case '*' : if (isstring(a)) {
@@ -276,19 +278,19 @@ static void dofunc_2(eval_env_t *env, char f)
                  valtostr(buf)[0] = '\0';
                  for (int k= cast2int(b); k>0; k--)
                    valbufcat(buf,valtostr(a));
-                 valpush(env->stack,buf);
+                 retval(env->stack,2,buf);
                }
-               else if(valisint(a)) valpush(env->stack, val(valtoint(a) * valtoint(b)));
+               else if(valisint(a)) retval(env->stack, 2,val(valtoint(a) * valtoint(b)));
                else die("First argument of multiplication must be a number or a string");
                break;
 
     case '/' : if (!valisint(a)) die("Division only accepts numbers as first argument");
-               valpush(env->stack, val(valtoint(a) / cast2int(b)));
+               retval(env->stack, 2, val(valtoint(a) / cast2int(b)));
                break;
 
     case '%' : { int32_t m = cast2int(b);
                  if (!valisint(a) || m<0) die("Modulo only accepts positive numbers");
-                 valpush(env->stack, val(valtoint(a) % m));
+                 retval(env->stack, 2, val(valtoint(a) % m));
                }
                break;
 
@@ -303,20 +305,20 @@ static void dofunc_2(eval_env_t *env, char f)
                    if (base == -1) powr = 1 - 2 * (expn & 1);
                  }
                  else for (int k=0; k<expn;k++) powr *= base;
-                 valpush(env->stack, val(powr));
+                 retval(env->stack, 2,val(powr));
                }
                break;
 
-    case ';' : valpush(env->stack,b);
+    case ';' : retval(env->stack,2,b);
                break;
 
-    case '<' : valpush(env->stack, isless(a,b));
+    case '<' : retval(env->stack, 2, isless(a,b));
                break;
 
-    case '>' : valpush(env->stack, isgreater(a,b));
+    case '>' : retval(env->stack, 2, isgreater(a,b));
                break;
 
-    case '?' : valpush(env->stack, isequal(a,b));
+    case '?' : retval(env->stack, 2, isequal(a,b));
                break;
   }
 }
@@ -336,7 +338,6 @@ static void dofunc_3(eval_env_t *env, char f)
     a = valtop(env->stack,-3);
     b = valtop(env->stack,-2);
     c = valtop(env->stack);
-    valdrop(env->stack,3);
 
     p = cast2str(a, num);
 
@@ -348,13 +349,13 @@ static void dofunc_3(eval_env_t *env, char f)
     if (len <0) len = 0;
     l = strlen(p);
     if (from >= l || len == 0 || *p == '\0') {
-      valpush(env->stack, valnilstr);
+      retval(env->stack, 3, valnilstr);
       return;
     }
     buf = addbuf(env);
     valbufcpy(buf,p+from,0,len);
    _dbgtrc("GETRET: %s %lX",valtostr(buf), buf);
-    valpush(env->stack, buf);
+    retval(env->stack, 3, buf);
    _dbgtrc("GETSTK: %lX",valtop(env->stack));
   }
   else die("unkonw function");
@@ -378,7 +379,6 @@ static void dofunc_4(eval_env_t *env, char f)
     b = valtop(env->stack,-3);
     c = valtop(env->stack,-2);
     d = valtop(env->stack);   
-    valdrop(env->stack,4);
 
     p1 = cast2str(a, num1);
    _dbgtrc("SET A:%s",p1);
@@ -403,7 +403,7 @@ static void dofunc_4(eval_env_t *env, char f)
     valbufcat(buf,p1+from+len);
    _dbgtrc("SET3: %s",valtostr(buf));
 
-    valpush(env->stack, buf);
+    retval(env->stack, 4, buf);
   }
   else die("unkonw function");
 }
@@ -430,6 +430,7 @@ val_t kneval(ast_t astcur)
   env.vars_val  = valnil;
   env.bufs      = valnil;
   env.bufs_free = valnil;
+  env.bufs_list_len = 0;
 
   srand(time(0));
 
@@ -450,20 +451,20 @@ val_t kneval(ast_t astcur)
      _dbgtrc("NODE: %d",curnode);
       if (astnodeis(astcur,curnode,number)) {
        _dbgtrc("NUM: %d", atoi(start));
-        valpush(env.stack,val(atoi(start)));
+        retval(env.stack,0,val(atoi(start)));
       }
       else if (astnodeis(astcur,curnode,string)) {
-        valpush(env.stack,string_const(env.stack,start,astnodelen(astcur,curnode)));
+        retval(env.stack,0,string_const(env.stack,start,astnodelen(astcur,curnode)));
       }
       else if (astnodeis(astcur,curnode,variable)) {
         int v = findvar(env.vars,start);
        _dbgtrc("VAR: %d (%.4s)", v,start);
-        valpush(env.stack,valget(env.vars_val,val(v)));
+        retval(env.stack,0,valget(env.vars_val,val(v)));
       }
       else if (astnodeis(astcur,curnode,varref)) {
         int v = findvar(env.vars,start);
        _dbgtrc("VARREF: %d (%.4s)", v,start);
-        valpush(env.stack,val(v));
+        retval(env.stack,0,val(v));
       }
       else if (astnodetag(astcur,curnode) >= 0xF0) { // It's a function!
        _dbgtrc("FNC: %c ", *start);
@@ -481,7 +482,7 @@ val_t kneval(ast_t astcur)
         assignvar(&env);
       }
       else if (astnodeis(astcur,curnode,while)) {
-        valpush(env.stack,valnil); // starting value
+        retval(env.stack,0,valnil); // starting value
       }
       else if (astnodeis(astcur,curnode,while_check)) {
         val_t a = valtop(env.stack);
@@ -491,9 +492,7 @@ val_t kneval(ast_t astcur)
         else valdrop(env.stack);
       }
       else if (astnodeis(astcur,curnode,while_end)) {
-       _dbgblk {val_t a = valtop(env.stack);
-                dbgtrc("WHILE_end drop: %lX",a);
-        }
+       _dbgtrc("WHILE_end drop: %lX",valtop(env.stack));
         curnode = astup(astcur,curnode);
       }
       else if (astnodeis(astcur,curnode, if_then)) {
@@ -508,7 +507,7 @@ val_t kneval(ast_t astcur)
           curnode = astright(astcur,curnode);
           curnode = astright(astcur,curnode);
       }
-      else if (astnodeis(astcur,curnode, if_then, and_check)) {
+      else if (astnodeis(astcur,curnode, and_check)) {
         val_t a = valtop(env.stack);
         if (isfalse(a)) {
           curnode = astright(astcur,curnode);
@@ -517,7 +516,6 @@ val_t kneval(ast_t astcur)
       }
       else if (astnodeis(astcur,curnode, or_check)) {
         val_t a = valtop(env.stack);
-        // valdrop(env.stack);
         if (!isfalse(a)) {
           curnode = astright(astcur,curnode);
           curnode = astright(astcur,curnode);
@@ -526,23 +524,21 @@ val_t kneval(ast_t astcur)
       else if (astnodeis(astcur,curnode,block)) {
         val_t addr = valconst(NODE_OFFSET,astdown(astcur,curnode));
         curnode = astright(astcur,curnode);
-        valpush(env.stack,addr);
+        retval(env.stack,0,addr);
       }
       else if (astnodeis(astcur,curnode,block_ret)) {
         val_t a = valtop(env.stack,-2);
         val_t b = valtop(env.stack);
        _dbgtrc("BLOCK RETURN: %lX",a);
-        valdrop(env.stack,2);
-        valpush(env.stack,b);
+        retval(env.stack,2,b);
         if (!valisconst(NODE_OFFSET,a)) die("invalid return");
         curnode = valtoint(a);
       }
       else if (astnodeis(astcur,curnode,call)) {
         val_t a = valtop(env.stack);
         if (!valisconst(NODE_OFFSET,a)) die("invalid block");
-        valdrop(env.stack);
         val_t r = valconst(NODE_OFFSET,curnode);
-        valpush(env.stack,r);
+        retval(env.stack,1,r);
        _dbgtrc("CALL %lX ret: %lX",a,r);
         curnode = valtoint(a);
       }
