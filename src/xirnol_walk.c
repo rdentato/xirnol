@@ -32,42 +32,6 @@ static int32_t findvar(val_t vars, char *var)
   return -1;
 }
 
-static void assignvar(eval_env_t *env)
-{
-  val_t a,b;
-
-  a = valtop(env->stack,-2); // value
-  b = valtop(env->stack);    // variable
-
-  if (!valisint(b)) die("Can't assign");
-
-  valdrop(env->stack);
-
-  valset(env->vars_val,b,a);
-}
-
-static val_t addbuf(eval_env_t *env)
-{
-  val_t buf;
- _dbgtrc("ADDING BUF");
-  gccycle(env);
-  if (env->bufs_free != valnil) {
-    buf = env->bufs_free;
-   _dbgtrc("RECYCLING %lX (s:%d c:%d)",buf,valsize(buf),valcount(buf));
-    env->bufs_free = valaux(buf);
-    valcount(buf,0);
-  }
-  else {
-    buf = valbuf(20);
-   _dbgtrc("NEWBUF %lX",buf);
-  }
-
-  valaux(buf,env->bufs);
-  env->bufs = buf;
-  env->bufs_list_len++;
-  return buf;
-}
-
 static int isstring(val_t a) { return (valisstr(a) || valisbuf(a));}
 
 static char *cast2str(val_t a, char *num)
@@ -145,6 +109,47 @@ static void retval(val_t stack,int32_t del, val_t ret)
   if (del>0) valdrop(stack,del);
   valpush(stack,ret);
 }
+
+static void assignvar(eval_env_t *env)
+{
+  val_t a,b;
+  int32_t n=-1;
+  char num[20];
+
+  a = valtop(env->stack,-2); // value
+  b = valtop(env->stack);    // variable
+
+  if (isstring(b)) n = findvar(env->vars, cast2str(b,num));
+  if (n >= 0) b = val(n);
+  
+  if (!valisint(b)) die("Can't assign");
+
+  valdrop(env->stack); // remove variable name
+  valset(env->vars_val,b,a);
+}
+
+static val_t addbuf(eval_env_t *env)
+{
+  val_t buf;
+ _dbgtrc("ADDING BUF");
+  gccycle(env);
+  if (env->bufs_free != valnil) {
+    buf = env->bufs_free;
+   _dbgtrc("RECYCLING %lX (s:%d c:%d)",buf,valsize(buf),valcount(buf));
+    env->bufs_free = valaux(buf);
+    valcount(buf,0);
+  }
+  else {
+    buf = valbuf(20);
+   _dbgtrc("NEWBUF %lX",buf);
+  }
+
+  valaux(buf,env->bufs);
+  env->bufs = buf;
+  env->bufs_list_len++;
+  return buf;
+}
+
 
 static void dofunc_0(eval_env_t *env, char f)
 {
