@@ -1,4 +1,5 @@
 #include "xirnol.h"
+#include "math.h"
 
 static char *N_string="null";
 static char *F_string="false";
@@ -33,6 +34,7 @@ static int32_t findvar(val_t vars, char *var)
 }
 
 static int isstring(val_t a) { return (valisstr(a) || valisbuf(a));}
+static int isnumber(val_t a) {return valisint(a) || valisdbl(a);}
 
 static char *cast2str(val_t a, char *num)
 {
@@ -41,17 +43,27 @@ static char *cast2str(val_t a, char *num)
     if (a == valnil)   return N_string;
     if (isstring(a))   return valtostr(a);
     
-    sprintf(num,"%d",valtoint(a));
+    if (valisdbl(a)) sprintf(num,"%f",valtodbl(a));
+    else if (valisint(a)) sprintf(num,"%d",valtoint(a));
     return num;
 }
 
 static int32_t cast2int(val_t x)
 {
+  if (valisdbl(x)) return (int32_t)(valtodbl(x));
   if (valisint(x)) return valtoint(x);
   if (isstring(x)) return atoi(valtostr(x));
-  if (x == valnil || x == valfalse) return 0;
   if (x == valtrue) return 1;
   return 0;
+}
+
+static double cast2dbl(val_t x)
+{
+  if (valisdbl(x)) return valtodbl(x);
+  if (valisint(x)) return valtodbl(x);
+  if (isstring(x)) return atof(valtostr(x));
+  if (x == valtrue) return 1.0;
+  return 0.0;
 }
 
 static val_t cast2bool(val_t x)
@@ -71,10 +83,11 @@ static int isfalse(val_t a) { return cast2bool(a) == valfalse; }
 static val_t isless(val_t a, val_t b)
 {
   int32_t n=0;
-  char num[20];
+  char num[32];
   _dbgtrc("< %lX %lX",a,b);
 
-       if (valisint(a))  n = (valtoint(a) < cast2int(b));
+       if (valisdbl(a))  n = (valtodbl(a) < cast2dbl(b));
+  else if (valisint(a))  n = (valtoint(a) < cast2int(b));
   else if (isstring(a))  n = (strcmp(valtostr(a),cast2str(b,num))<0);
   else if (valisbool(a)) n = ((a == valfalse) && (cast2bool(b) == valtrue));
   else die("can only compare numbers, strings and booleans");
@@ -84,10 +97,11 @@ static val_t isless(val_t a, val_t b)
 static val_t isgreater(val_t a, val_t b)
 {
   int32_t n=0;
-  char num[20];
+  char num[32];
   _dbgtrc("> %lX %lX",a,b);
 
-       if (valisint(a))  n = (valtoint(a) > cast2int(b));
+       if (valisdbl(a))  n = (valtodbl(a) > cast2dbl(b));
+  else if (valisint(a))  n = (valtoint(a) > cast2int(b));
   else if (isstring(a))  n = (strcmp(valtostr(a),cast2str(b,num))>0);
   else if (valisbool(a)) n = ((a == valtrue) && (cast2bool(b) == valfalse));
   else die("can only compare numbers, strings and booleans");
@@ -114,7 +128,7 @@ static void assignvar(eval_env_t *env)
 {
   val_t a,b;
   int32_t n=-1;
-  char num[20];
+  char num[32];
 
   a = valtop(env->stack,-2); // value
   b = valtop(env->stack);    // variable
@@ -150,7 +164,6 @@ static val_t addbuf(eval_env_t *env)
   return buf;
 }
 
-
 static void dofunc_0(eval_env_t *env, char f)
 {
   switch (f) {
@@ -175,28 +188,40 @@ static void dofunc_1(eval_env_t *env, char f)
 {
   val_t a;
   int32_t n;
-  char num[20];
+  char num[32];
   char *p;
 
   a = valtop(env->stack);
                
   switch (f) {
-    case 'Q' : exit(valtoint(a));
+    case 'Q' : exit(cast2int(a));
 
     case 'D' :_dbgtrc("D: %lX",a);
-               if (valisint(a)) printf("Number(%d)\n",valtoint(a));
+               if (valisdbl(a)) printf("Number(%f)\n",valtodbl(a));
+               else if (valisint(a)) printf("Number(%d)\n",valtoint(a));
                else if (a == valnil) printf("Null()\n");
                else if (a == valtrue) printf("Boolean(true)\n");
                else if (a == valfalse) printf("Boolean(false)\n");
                else if (isstring(a)) printf("String(%s)\n",valtostr(a));
                break;
 
-    case '~' : n = -valtoint(a);
-               retval(env->stack,1,val(n));
+    case '~' :      if (valisdbl(a)) retval(env->stack,1,val(valtodbl(a) * -1.0));
+               else if (valisint(a)) retval(env->stack,1,val(valtoint(a) * -1));
+               else {
+                double d;
+                int32_t n;
+                d = cast2dbl(a);
+                n = cast2int(a);
+                dbgtrc("~ n: %d d: %f == : %d",n,d,(double)n == d);
+                if ((double)n == d) retval(env->stack,1,val(valtoint(a) * -1));
+                else retval(env->stack,1,val(valtodbl(a) * -1.0)); 
+               }
                break;
 
-    case '!' : 
-               if (valisstr(a)) {
+    case '$' : retval(env->stack,1,val(cast2int(a))); 
+               break;
+
+    case '!' : if (valisstr(a)) {
                  n = valtostr(a)[0];
                }
                else n = valtoint(a);
@@ -209,7 +234,7 @@ static void dofunc_1(eval_env_t *env, char f)
                retval(env->stack,1,val(n));
                break;
 
-    case 'A' : if (valisint(a)) {
+    case 'A' : if (isnumber(a)) {
                  n = valtoint(a);
                  val_t buf = addbuf(env);
                  valset(buf,val(0),val(n));
@@ -241,7 +266,7 @@ static void dofunc_1(eval_env_t *env, char f)
                break;
 
     case '`' : { char *cmd;
-                 char num[20];
+                 char num[32];
                  cmd = cast2str(a,num);
                  if (*cmd) {
                      val_t buf;
@@ -259,6 +284,18 @@ static void dofunc_1(eval_env_t *env, char f)
   }
 }
 
+#define number_OP(name,op,a,b) \
+           static val_t number_ ## name(val_t a, val_t b) \
+           { \
+             if (valisdbl(a)) \
+               return val(valtodbl(a) op cast2dbl(b)); \
+             return val(valtoint(a) op cast2int(b)); \
+           }
+
+number_OP(add,+,a,b)
+number_OP(sub,-,a,b)
+number_OP(mul,*,a,b)
+number_OP(div,/,a,b)
 
 static void dofunc_2(eval_env_t *env, char f)
 {
@@ -271,19 +308,19 @@ static void dofunc_2(eval_env_t *env, char f)
 
     case '+' : if (isstring(a)) {
                  char *p;
-                 char num[20];
+                 char num[32];
                  p = cast2str(b,num);
                  val_t buf = addbuf(env);
                  valbufcpy(buf,valtostr(a));
                  valbufcat(buf,p);
                  retval(env->stack,2,buf);
                }
-               else if (valisint(a)) retval(env->stack, 2, val(valtoint(a) + valtoint(b)));
+               else if (isnumber(a)) retval(env->stack, 2, number_add(a,b));
                else die("First argument of addition must be a number or a string");
                break;
 
-    case '-' : if (!valisint(a)) die("Subtraction only accepts numbers as first argument");
-               retval(env->stack, 2, val(valtoint(a) - cast2int(b)));
+    case '-' : if (!isnumber(a)) die("Subtraction only accepts numbers as first argument");
+               retval(env->stack, 2, number_sub(a,b));
                break;
 
     case '*' : if (isstring(a)) {
@@ -293,24 +330,26 @@ static void dofunc_2(eval_env_t *env, char f)
                    valbufcat(buf,valtostr(a));
                  retval(env->stack,2,buf);
                }
-               else if(valisint(a)) retval(env->stack, 2,val(valtoint(a) * valtoint(b)));
+               else if(isnumber(a)) retval(env->stack, 2,number_mul(a,b));
                else die("First argument of multiplication must be a number or a string");
                break;
 
-    case '/' : if (!valisint(a)) die("Division only accepts numbers as first argument");
-               retval(env->stack, 2, val(valtoint(a) / cast2int(b)));
+    case '/' : if (!isnumber(a)) die("Division only accepts numbers as first argument");
+               retval(env->stack, 2, number_div(a,b));
                break;
 
-    case '%' : { int32_t m = cast2int(b);
-                 if (!valisint(a) || m<0) die("Modulo only accepts positive numbers");
-                 retval(env->stack, 2, val(valtoint(a) % m));
+    case '%' : { if (valisdbl(a)) 
+                   retval(env->stack, 2, val(fmod(valtodbl(a) , cast2dbl(b))));
+                 else if (valisint(a))
+                   retval(env->stack, 2, val(valtoint(a) % cast2int(b)));
+                 else die("Modulo only accepts numbers as a base");
                }
                break;
 
-    case '^' : { int32_t base = valtoint(a);
+    case '^' : if (valisint(a)) {
+                 int32_t base = valtoint(a);
                  int32_t expn = cast2int(b);
                  int32_t powr = 1;
-                 if (!valisint(a)) die("Exponention base must be a number");
                  if (base == 1) powr = 1;
                  else if (expn < 0) {
                    powr = 0;
@@ -320,6 +359,10 @@ static void dofunc_2(eval_env_t *env, char f)
                  else for (int k=0; k<expn;k++) powr *= base;
                  retval(env->stack, 2,val(powr));
                }
+               else if (valisdbl(a)) {
+                 retval(env->stack, 2,val(pow(valtodbl(a),cast2dbl(b))));
+               }
+               else die("Exponention base must be a number");
                break;
 
     case ';' : retval(env->stack,2,b);
@@ -339,7 +382,7 @@ static void dofunc_2(eval_env_t *env, char f)
 static void dofunc_3(eval_env_t *env, char f)
 {
   val_t a, b, c;
-  char num[20];
+  char num[32];
   char *p;
  _dbgtrc("F3: %c",f);
   if (f == 'G') {
@@ -462,9 +505,13 @@ val_t kneval(ast_t astcur)
     if (astisnodeentry(astcur,curnode)) {
       start = astnodefrom(astcur,curnode);
      _dbgtrc("NODE: %d",curnode);
-      if (astnodeis(astcur,curnode,number)) {
+      if (astnodeis(astcur,curnode,integer)) {
        _dbgtrc("NUM: %d", atoi(start));
         retval(env.stack,0,val(atoi(start)));
+      }
+      else if (astnodeis(astcur,curnode,float)) {
+       _dbgtrc("NUM: %d", atof(start));
+        retval(env.stack,0,val(atof(start)));
       }
       else if (astnodeis(astcur,curnode,string)) {
         retval(env.stack,0,string_const(env.stack,start,astnodelen(astcur,curnode)));

@@ -13,7 +13,7 @@ all: skpgen xirnol knight
 XIRNOL_OBJS = xirnol_parse.o xirnol_walk.o xirnol_gc.o xirnol.o
 
 xirnol: $(XIRNOL_OBJS)
-	$(CC) -s -o $@ $(XIRNOL_OBJS)
+	$(CC) -s -o $@ $(XIRNOL_OBJS) -lm
 
 knight: xirnol
 	cp xirnol knight

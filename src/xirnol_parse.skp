@@ -24,7 +24,7 @@
   }
 
   skpfunc(func_0) {return 0+chkfunction("TFNPR",&skpcur); }
-  skpfunc(func_1) {return 1+chkfunction("VQLDOA!`~",&skpcur); }
+  skpfunc(func_1) {return 1+chkfunction("VQLDOA!$`~",&skpcur); }
   skpfunc(func_2) {return 2+chkfunction("-+*/%^<>?;&|",&skpcur); }
   skpfunc(func_3) {return 3+chkfunction("G",&skpcur); }
   skpfunc(func_4) {return 4+chkfunction("S",&skpcur); }
@@ -61,14 +61,14 @@
 prog = _expr+ _EOF_  prog_end {astaux(astcur)=&vars;} ;
 prog_end = {} ;
 
-expr = __ (instr / number / _string_ / variable[] ) ;
+expr = __ (instr / _number / _string_ / variable[] ) ;
 
 instr = _arity0 / _arity1 / _arity2 / _arity3 / _arity4;
 
 % TRUE, FALSE, NULL, PROMPT, RANDOM
 arity0 = func_0[] ;
 
-% EVAL, BLOCK, CALL, QUIT, LENGTH, DUMP, OUTPUT, ASCII, !, :, `, ~, VALUE
+% EVAL, BLOCK, CALL, QUIT, LENGTH, DUMP, OUTPUT, ASCII, !, :, `, ~, VALUE, $
 arity1 = block block_ret / call _<expr / func_1[] _<expr ;       %  ':' is considered whitespace 
 
 call = _"'C'*[A-Z_]" ;
@@ -110,7 +110,10 @@ if_end = {} ;
 arity4 = func_4[] <args4;
 args4 = _expr _expr _expr _expr;
 
-number = _"+d" ;
+% number = _"+d '.' *d" ;
+number = float / integer ;
+float = _"+d '.' *d" / _"'.'+d" ;
+integer = _"+d" ;
 
 string_ = _quote[] string[] _quote[] ;
 
