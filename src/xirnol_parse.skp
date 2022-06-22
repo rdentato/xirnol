@@ -24,7 +24,7 @@
   }
 
   skpfunc(func_0) {return 0+chkfunction("TFNPR",&skpcur); }
-  skpfunc(func_1) {return 1+chkfunction("VQLDOA!$`~",&skpcur); }
+  skpfunc(func_1) {return 1+chkfunction("VQLDOA!`~",&skpcur); }
   skpfunc(func_2) {return 2+chkfunction("-+*/%^<>?;&|",&skpcur); }
   skpfunc(func_3) {return 3+chkfunction("G",&skpcur); }
   skpfunc(func_4) {return 4+chkfunction("S",&skpcur); }

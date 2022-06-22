@@ -218,9 +218,6 @@ static void dofunc_1(eval_env_t *env, char f)
                }
                break;
 
-    case '$' : retval(env->stack,1,val(cast2int(a))); 
-               break;
-
     case '!' : if (valisstr(a)) {
                  n = valtostr(a)[0];
                }
