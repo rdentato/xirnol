@@ -21,6 +21,7 @@ A GC cycle will be started when the number of allocated buffers is greater
 void gccycle(eval_env_t *env)
 {
   val_t *arr ;
+  return;
  _dbgtrc("GARBAGE COLLECTION CHECK");
  _dbgtrc("#vars: %d",valcount(env->vars_val));
  _dbgtrc("#stack: %d",valcount(env->stack));

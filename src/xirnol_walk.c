@@ -124,24 +124,6 @@ static void retval(val_t stack,int32_t del, val_t ret)
   valpush(stack,ret);
 }
 
-static void assignvar(eval_env_t *env)
-{
-  val_t a,b;
-  int32_t n=-1;
-  char num[32];
-
-  a = valtop(env->stack,-2); // value
-  b = valtop(env->stack);    // variable
-
-  if (isstring(b)) n = findvar(env->vars, cast2str(b,num));
-  if (n >= 0) b = val(n);
-  
-  if (!valisint(b)) die("Can't assign");
-
-  valdrop(env->stack); // remove variable name
-  valset(env->vars_val,b,a);
-}
-
 static val_t addbuf(eval_env_t *env)
 {
   val_t buf;
@@ -162,6 +144,100 @@ static val_t addbuf(eval_env_t *env)
   env->bufs = buf;
   env->bufs_list_len++;
   return buf;
+}
+
+static val_t addstk(eval_env_t *env)
+{
+  val_t stk;
+ _dbgtrc("ADDING STK");
+  gccycle(env);
+  if (env->stks_free != valnil) {
+    stk = env->stks_free;
+   _dbgtrc("RECYCLING %lX (s:%d c:%d)",buf,valsize(stk),valcount(stk));
+    env->stks_free = valaux(stk);
+    valcount(stk,0);
+  }
+  else {
+    stk = valvec(20);
+   _dbgtrc("NEWSTK %lX",stk);
+  }
+
+  valaux(stk,env->stks);
+  env->stks = stk;
+  env->stks_list_len++;
+ _dbgtrc("Use STK: %lX",stk);
+  return stk;
+}
+
+
+static void assignvar(eval_env_t *env)
+{
+  val_t a,b;
+  int32_t n=-1;
+  char num[32];
+
+  a = valtop(env->stack,-2); // value
+  b = valtop(env->stack);    // variable
+
+  if (isstring(b)) n = findvar(env->vars, cast2str(b,num));
+  if (n >= 0) b = val(n);
+  
+  if (!valisint(b)) die("Can't assign");
+
+  valdrop(env->stack); // remove variable name
+  valset(env->vars_val,b,a);
+}
+
+static void jamvar(eval_env_t *env)
+{
+  val_t a,b;
+  int32_t n=-1;
+  char num[32];
+  val_t stk;
+
+  a = valtop(env->stack,-2); // value
+  b = valtop(env->stack);    // variable
+
+  if (isstring(b)) n = findvar(env->vars, cast2str(b,num));
+  else n = valtoint(b);
+ _dbgtrc("JAM VAR: %d",n);
+  if (n < 0) die("Can't jam");
+
+  b = val(n);
+  stk = valget(env->vars_val,b);
+
+  if (!valisvec(stk)) stk = addstk(env);
+ _dbgtrc("JAM ARR2: %lX (%d)",stk, valcount(stk));
+
+  valpush(stk,a);
+
+  valdrop(env->stack); // remove variable name
+  valset(env->vars_val,b,stk);
+}
+
+static void yankvar(eval_env_t *env)
+{
+  val_t a,b;
+  int32_t n=-1;
+  char num[32];
+  val_t stk;
+
+  b = valtop(env->stack);    // variable
+
+  if (isstring(b)) n = findvar(env->vars, cast2str(b,num));
+  else n = valtoint(b);
+ _dbgtrc("YANK VAR: %d",n);
+  if (n < 0) die("Can't yank");
+
+  b = val(n);
+  stk = valget(env->vars_val,b);
+
+  a = valnil;
+  if (valisvec(stk)) {
+    a = valtop(stk);
+    valdrop(stk);
+  }
+  retval(env->stack,1,a);
 }
 
 static void dofunc_0(eval_env_t *env, char f)
@@ -212,7 +288,7 @@ static void dofunc_1(eval_env_t *env, char f)
                 int32_t n;
                 d = cast2dbl(a);
                 n = cast2int(a);
-                dbgtrc("~ n: %d d: %f == : %d",n,d,(double)n == d);
+               _dbgtrc("~ n: %d d: %f == : %d",n,d,(double)n == d);
                 if ((double)n == d) retval(env->stack,1,val(valtoint(a) * -1));
                 else retval(env->stack,1,val(valtodbl(a) * -1.0)); 
                }
@@ -226,7 +302,9 @@ static void dofunc_1(eval_env_t *env, char f)
                retval(env->stack,1,n ? valfalse : valtrue);
                break;
 
-    case 'L' : n = strlen(cast2str(a,num));
+    case 'L' :_dbgtrc("LEN: %lX",a);
+               if (valisvec(a)) n = valcount(a);
+               else n = strlen(cast2str(a,num));
                if (n<0) n = 0;
                retval(env->stack,1,val(n));
                break;
@@ -484,6 +562,9 @@ val_t kneval(ast_t astcur)
   env.bufs      = valnil;
   env.bufs_free = valnil;
   env.bufs_list_len = 0;
+  env.stks      = valnil;
+  env.stks_free = valnil;
+  env.stks_list_len = 0;
 
   srand(time(0));
 
@@ -537,6 +618,14 @@ val_t kneval(ast_t astcur)
       else if (astnodeis(astcur,curnode,assign)) {
         if (env.vars_val == valnil) die("No variable defined/referenced");
         assignvar(&env);
+      }
+      else if (astnodeis(astcur,curnode,jam)) {
+        if (env.vars_val == valnil) die("No variable defined/referenced");
+        jamvar(&env);
+      }
+      else if (astnodeis(astcur,curnode,yank)) {
+        if (env.vars_val == valnil) die("No variable defined/referenced");
+        yankvar(&env);
       }
       else if (astnodeis(astcur,curnode,while)) {
         retval(env.stack,0,valnil); // starting value

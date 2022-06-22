@@ -69,15 +69,16 @@ instr = _arity0 / _arity1 / _arity2 / _arity3 / _arity4;
 arity0 = func_0[] ;
 
 % EVAL, BLOCK, CALL, QUIT, LENGTH, DUMP, OUTPUT, ASCII, !, :, `, ~, VALUE, $
-arity1 = block block_ret / call _<expr / func_1[] _<expr ;       %  ':' is considered whitespace 
+arity1 = block block_ret / call _<expr / yank __ (<varref / _<expr) /func_1[] _<expr ;       %  ':' is considered whitespace 
 
 call = _"'C'*[A-Z_]" ;
+yank = _"'Y'*[A-Z_]" ;
 
 block = _"'B'*[A-Z_]" expr ;
 block_ret = {} ;
 
 % =, +, -, *, /, %, ^, <, >, ?, &, |, ;, WHILE
-arity2 = assign <assign_args / while / _and_ / _or_ / func_2[] <args2 ;
+arity2 = assign <assign_args / jam <assign_args / while / _and_ / _or_ / func_2[] <args2 ;
 args2 = _expr _expr;
 
 % For assign, let's invert the arguments so that we will just drop the top
@@ -85,6 +86,8 @@ args2 = _expr _expr;
 assign = _'=' ;
 assign_args = (__ varref / _expr) _<expr;
 varref = _variable[] ;
+
+jam = _"'J'*[A-Z_]" ;
 
 while = _"'W'*[A-Z_]" _expr while_check expr while_end ;
 while_check = {} ;
