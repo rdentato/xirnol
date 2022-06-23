@@ -42,9 +42,9 @@ static char *loadsource(char *fname)
 
 #define trace(...) (fprintf(stderr,__VA_ARGS__),fputc('\n',stderr))
 
-static int isvarchr(char c)
+int isvarchr(char c)
 {
-  return (c=='_') || (('a'<=c) && (c<='z'));
+  return (c=='_') || (('a'<=c) && (c<='z')) || (('0'<=c) && (c<='9'));
 }
 
 int varcmp(const void *a, const void *b)
@@ -66,7 +66,7 @@ int varcmp(const void *a, const void *b)
 
 static void fixvars(val_t v)
 {
-  if (!valisvec(v) || valcount(v) == 0) return;
+ if (!valisvec(v) || valcount(v) == 0) return;
   val_t *arr;
 
   arr = valarray(v);
@@ -158,18 +158,15 @@ int main(int argc, char *argv[])
     
     sprintf(fnamebuf,"%s"".t",bnamebuf);
     hdr = fopen(fnamebuf,"w");
-    if (hdr) {
-      astprint(ast,hdr);
-      fprintf(hdr,"%d nodes\n",astnumnodes(ast));
-      fclose(hdr); hdr = NULL;
-      //fprintf(stderr,"AST file: '%s'\n",fnamebuf);
-      val_t v = *((val_t *)astaux(ast));
-      if (v != valnil) {
-        fixvars(v);
-       _dbgtrc("Vars: %d",valcount(v));
-      }
-    }
+    assert(hdr);
 
+    astprint(ast,hdr);
+    fprintf(hdr,"%d nodes\n",astnumnodes(ast));
+    fclose(hdr); hdr = NULL;
+    //fprintf(stderr,"AST file: '%s'\n",fnamebuf);
+
+    val_t v = *((val_t *)astaux(ast)); // variables
+    fixvars(v);
     //val_t retevl;
     //retevl = 
     kneval(ast);

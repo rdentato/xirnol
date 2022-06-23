@@ -72,7 +72,7 @@ arity0 = func_0[] ;
 arity1 = block block_ret / call _<expr / yank __ (<varref / _<expr) /func_1[] _<expr ;       %  ':' is considered whitespace 
 
 call = _"'C'*[A-Z_]" ;
-yank = _"'Y'*[A-Z_]" ;
+yank = _'X_POP' ;
 
 block = _"'B'*[A-Z_]" expr ;
 block_ret = {} ;
@@ -87,7 +87,7 @@ assign = _'=' ;
 assign_args = (__ varref / _expr) _<expr;
 varref = _variable[] ;
 
-jam = _"'J'*[A-Z_]" ;
+jam = _'X_PUSH' ;
 
 while = _"'W'*[A-Z_]" _expr while_check expr while_end ;
 while_check = {} ;

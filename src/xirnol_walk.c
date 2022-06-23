@@ -11,30 +11,66 @@ void die(char *err)
   exit(1);
 }
 
-static int32_t findvar(val_t vars, char *var)
-{
-  val_t varname = val(var);
-  val_t *arr;
-  int32_t i = 0;
-  int32_t j = -1;
-  int32_t m = -1;
-  int cmp;
+static int isstring(val_t a) { return (valisstr(a) || valisbuf(a));}
+static int isnumber(val_t a) {return valisint(a) || valisdbl(a);}
 
-  j = valcount(vars) -1;
+static int32_t findvar(eval_env_t *env, val_t varname)
+{
+  val_t *arr;
+  val_t vars = env->vars;
+  int cmp =0;
+  int32_t namelen = 0;
+  char *var;
+
+  // There must be at least one valid character in the var name
+  
+  if (isstring(varname)) {
+    var = valtostr(varname);
+    while(isvarchr(var[namelen]))
+      namelen++;
+  } 
+
+  if (namelen == 0) die("Invalid variable name");
+
+ _dbgtrc("FIDNVAR: '%.*s'",namelen,var);
+
+  int32_t i = 0;
+  int32_t j = valcount(vars) -1;
+  int32_t m = 0;
+
   arr = valarray(vars);
   while (i<=j) {
     m = (i+j)/2;
-    cmp = varcmp(&varname,arr+m);
+    cmp = varcmp(&varname, arr+m);
     if (cmp == 0) return m;
     if (cmp < 0) j = m-1;
     else i = m+1;
   }
 
-  return -1;
-}
+  // Not found. Add it!
 
-static int isstring(val_t a) { return (valisstr(a) || valisbuf(a));}
-static int isnumber(val_t a) {return valisint(a) || valisdbl(a);}
+  // the new variable name should in position m
+  if (cmp > 0) m = m+1; // (or the one after if it is greater)
+
+ _dbgtrc("FINDVAR: Not found! Will be: %d",m);
+
+  valpush(env->vars,varname);
+  valpush(env->vars_val,valnil);
+
+  
+  int cnt = valcount(env->vars);
+  if (m < (cnt-1)) {
+    // needed because push could have reallocated the array
+    arr = valarray(env->vars);
+    memmove(arr+m+1,arr+m, (cnt - m) * sizeof(val_t));
+    arr[m] = varname;
+    arr = valarray(env->vars_val);
+    memmove(arr+m+1,arr+m, (cnt - m) * sizeof(val_t));
+    arr[m] = valnil;
+  }
+
+  return m;
+}
 
 static char *cast2str(val_t a, char *num)
 {
@@ -174,12 +210,14 @@ static void assignvar(eval_env_t *env)
 {
   val_t a,b;
   int32_t n=-1;
-  char num[32];
 
   a = valtop(env->stack,-2); // value
   b = valtop(env->stack);    // variable
 
-  if (isstring(b)) n = findvar(env->vars, cast2str(b,num));
+  if (isstring(b)) {
+   _dbgtrc("ASSIGN FINDVAR: %lX",b);
+    n = findvar(env, b);
+  }
   if (n >= 0) b = val(n);
   
   if (!valisint(b)) die("Can't assign");
@@ -192,13 +230,12 @@ static void jamvar(eval_env_t *env)
 {
   val_t a,b;
   int32_t n=-1;
-  char num[32];
   val_t stk;
 
   a = valtop(env->stack,-2); // value
   b = valtop(env->stack);    // variable
 
-  if (isstring(b)) n = findvar(env->vars, cast2str(b,num));
+  if (isstring(b)) n = findvar(env, b);
   else n = valtoint(b);
  _dbgtrc("JAM VAR: %d",n);
   if (n < 0) die("Can't jam");
@@ -219,12 +256,11 @@ static void yankvar(eval_env_t *env)
 {
   val_t a,b;
   int32_t n=-1;
-  char num[32];
   val_t stk;
 
   b = valtop(env->stack);    // variable
 
-  if (isstring(b)) n = findvar(env->vars, cast2str(b,num));
+  if (isstring(b)) n = findvar(env, b);
   else n = valtoint(b);
  _dbgtrc("YANK VAR: %d",n);
   if (n < 0) die("Can't yank");
@@ -333,7 +369,7 @@ static void dofunc_1(eval_env_t *env, char f)
                break;
 
     case 'V' : n = -1;
-               if (isstring(a)) n = findvar(env->vars, cast2str(a,num));
+               if (isstring(a)) n = findvar(env, a);
                if (n >= 0)
                  retval(env->stack,1,valget(env->vars_val,val(n)));
                else
@@ -556,23 +592,28 @@ val_t kneval(ast_t astcur)
 
   eval_env_t env;
 
-  env.stack     = valvec(100);
-  env.vars      = valnil;
-  env.vars_val  = valnil;
-  env.bufs      = valnil;
-  env.bufs_free = valnil;
+  env.stack         = valvec(100);
+  env.vars          = valnil;
+  env.vars_val      = valnil;
+  env.bufs          = valnil;
+  env.bufs_free     = valnil;
   env.bufs_list_len = 0;
-  env.stks      = valnil;
-  env.stks_free = valnil;
+  env.stks          = valnil;
+  env.stks_free     = valnil;
   env.stks_list_len = 0;
+  env.vars_names    = valnil;
 
   srand(time(0));
 
   if (astaux(astcur) == NULL) return -1;
   env.vars = *((val_t *)astaux(astcur));
   
+  if (env.vars == valnil) {
+    env.vars = valvec(5);
+  }
+
   if (valisvec(env.vars)) {
-    env.vars_val = valvec(valcount(env.vars));
+    env.vars_val = valvec(valsize(env.vars));
     val_t *a = valarray(env.vars_val);
     if (a == NULL) die("Unexpected!");
     for (int k=0; k<valcount(env.vars); k++) 
@@ -595,12 +636,12 @@ val_t kneval(ast_t astcur)
         retval(env.stack,0,string_const(env.stack,start,astnodelen(astcur,curnode)));
       }
       else if (astnodeis(astcur,curnode,variable)) {
-        int v = findvar(env.vars,start);
+        int v = findvar(&env,val(start));
        _dbgtrc("VAR: %d (%.4s)", v,start);
         retval(env.stack,0,valget(env.vars_val,val(v)));
       }
       else if (astnodeis(astcur,curnode,varref)) {
-        int v = findvar(env.vars,start);
+        int v = findvar(&env,val(start));
        _dbgtrc("VARREF: %d (%.4s)", v,start);
         retval(env.stack,0,val(v));
       }
@@ -616,15 +657,12 @@ val_t kneval(ast_t astcur)
         }
       }
       else if (astnodeis(astcur,curnode,assign)) {
-        if (env.vars_val == valnil) die("No variable defined/referenced");
         assignvar(&env);
       }
       else if (astnodeis(astcur,curnode,jam)) {
-        if (env.vars_val == valnil) die("No variable defined/referenced");
         jamvar(&env);
       }
       else if (astnodeis(astcur,curnode,yank)) {
-        if (env.vars_val == valnil) die("No variable defined/referenced");
         yankvar(&env);
       }
       else if (astnodeis(astcur,curnode,while)) {
@@ -697,6 +735,7 @@ val_t kneval(ast_t astcur)
  _dbgtrc("FINAL DEPTH: %d",valcount(env.stack));
 
   valfree(env.vars_val);
+  valfree(env.vars_names);
   valfree(env.stack);
   
   for (val_t p = env.bufs; p != valnil; p=env.bufs ) {
@@ -705,6 +744,14 @@ val_t kneval(ast_t astcur)
   }
   for (val_t p = env.bufs_free; p != valnil; p=env.bufs_free ) {
     env.bufs_free = valaux(p);
+    valfree(p);
+  }
+  for (val_t p = env.stks; p != valnil; p=env.stks ) {
+    env.stks = valaux(p);
+    valfree(p);
+  }
+  for (val_t p = env.stks_free; p != valnil; p=env.stks_free ) {
+    env.stks_free = valaux(p);
     valfree(p);
   }
 
