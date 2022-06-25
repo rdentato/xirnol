@@ -25,6 +25,6 @@ typedef struct eval_env_s {
 val_t kneval(ast_t ast);
 int varcmp(const void *a, const void *b);
 int isvarchr(char c);
-void gccycle(eval_env_t *env);
+void gccycle(eval_env_t *env,int32_t force);
 
 #endif

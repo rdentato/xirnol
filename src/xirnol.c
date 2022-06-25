@@ -66,7 +66,8 @@ int varcmp(const void *a, const void *b)
 
 static void fixvars(val_t v)
 {
- if (!valisvec(v) || valcount(v) == 0) return;
+  
+  if (!valisvec(v) || valcount(v) == 0) return;
   val_t *arr;
 
   arr = valarray(v);
@@ -85,16 +86,7 @@ static void fixvars(val_t v)
   }
 
   valcount(v,j+1);
-
-//  char *s;
-//  for (k=0; k< valcount(v); k++) {
-//    s = valtostr(arr[k]);
-//    while (isvarchr(*s)) 
-//      fputc(*s++,stderr);
-//    fputc('\n',stderr);
-//  }
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -127,9 +119,13 @@ int main(int argc, char *argv[])
     vrgopt("-t\tEnable tracing in parser") {
       trc = 1;
     }
+
+    vrgoptdefault {
+      fprintf(stderr, "WARNING: ignored option -%c\n",argv[vrgargn][1]);
+    }
   }
 
-  if (knbuf == NULL && vrgargn<argc) {
+  if ((knbuf == NULL) && (vrgargn < argc)) {
     fname = argv[vrgargn];
     knbuf = loadsource(fname);
   }

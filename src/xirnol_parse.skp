@@ -66,7 +66,9 @@ expr = __ (instr / _number / _string_ / variable[] ) ;
 instr = _arity0 / _arity1 / _arity2 / _arity3 / _arity4;
 
 % TRUE, FALSE, NULL, PROMPT, RANDOM
-arity0 = func_0[] ;
+arity0 = gc / func_0[] ;
+
+gc = _"X_GCOLLECT" ;
 
 % EVAL, BLOCK, CALL, QUIT, LENGTH, DUMP, OUTPUT, ASCII, !, :, `, ~, VALUE, $
 arity1 = block block_ret / call _<expr / yank __ (<varref / _<expr) /func_1[] _<expr ;       %  ':' is considered whitespace 

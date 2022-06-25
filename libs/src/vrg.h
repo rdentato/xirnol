@@ -125,6 +125,14 @@ int vrg_nxtopt();
   else if (!vrg_isopt(vrg_opt_)); \
   else
 
+#define vrgoptdefault \
+  if ((vrgargn == 0) || \
+      (vrgargn >= vrg_argc) || \
+      (vrg_argv[vrgargn][0] != '-') || \
+      (vrg_argv[vrgargn][1] == '\0') || \
+      (vrg_argv[vrgargn][1] == ' ')); \
+  else
+
 #ifdef VRG_MAIN
 
 #ifdef DEBUG

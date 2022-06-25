@@ -200,6 +200,7 @@ int32_t val_bufreadfile3(val_t b, FILE *f, int32_t start);
 #define val_count1(v) val_count2(v,-1)
 int32_t val_count2(val_t v,int32_t n);
 
+#define valnext  valaux
 #define valaux(...) VAL_varargs(val_aux, __VA_ARGS__)
 #define val_aux1(v) val_aux2(v,valfalse)
   val_t val_aux2(val_t v, val_t p);
@@ -523,16 +524,28 @@ val_t val_aux2(val_t v, val_t p)
 
 int32_t val_refs1(val_t v)
 {
-  val_info_t vv;
-  vv = (val_info_t)(valtoptr(v));
-  return vv->refs;
+  val_info_t vv = valtoptr(v);
+
+  switch (VALTYPE(v)) {
+    case VALMAP:
+    case VALBUF: 
+    case VALVEC: return vv->refs;
+  }
+  
+  return 0;
 }
 
 int32_t val_refs2(val_t v, int32_t n)
 {
-  val_info_t vv;
-  vv = (val_info_t)(valtoptr(v));
-  return (vv->refs = n);
+  val_info_t vv = valtoptr(v);
+
+  switch (VALTYPE(v)) {
+    case VALMAP:
+    case VALBUF: 
+    case VALVEC: return (vv->refs = n);
+  }
+  
+  return 0;
 }
 
 static val_t val_vec(int32_t sz, int32_t esz, val_t type)
@@ -735,9 +748,11 @@ val_t val_drop2(val_t v, int32_t n)
 {
   val_info_t vv;
   if (!valisvec(v) || (vv = valtoptr(v)) == NULL) return valnil;
-  if (n<0) n = -n;
-  vv->count -= n;
-  if (vv->count <= vv->first) { vv->count = vv->first = 0; }
+  if (n != 0) {
+    if (n<0) n = -n;
+    vv->count -= n;
+    if (vv->count <= vv->first) { vv->count = vv->first = 0; }
+  }
   return val(vv->count - vv->first);
 }
 

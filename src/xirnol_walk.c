@@ -57,7 +57,8 @@ static int32_t findvar(eval_env_t *env, val_t varname)
   valpush(env->vars,varname);
   valpush(env->vars_val,valnil);
 
-  
+  valrefs(varname,-1); // To prevent variable names to be collected
+
   int cnt = valcount(env->vars);
   if (m < (cnt-1)) {
     // needed because push could have reallocated the array
@@ -156,7 +157,7 @@ static val_t isequal(val_t a, val_t b)
 
 static void retval(val_t stack,int32_t del, val_t ret)
 {
-  if (del>0) valdrop(stack,del);
+  valdrop(stack,del);
   valpush(stack,ret);
 }
 
@@ -164,11 +165,11 @@ static val_t addbuf(eval_env_t *env)
 {
   val_t buf;
  _dbgtrc("ADDING BUF");
-  gccycle(env);
+  gccycle(env,0);
   if (env->bufs_free != valnil) {
     buf = env->bufs_free;
-   _dbgtrc("RECYCLING %lX (s:%d c:%d)",buf,valsize(buf),valcount(buf));
-    env->bufs_free = valaux(buf);
+   _dbgtrc("RECYCLE BUF %lX (s:%d c:%d)",buf,valsize(buf),valcount(buf));
+    env->bufs_free = valnext(buf);
     valcount(buf,0);
   }
   else {
@@ -176,7 +177,7 @@ static val_t addbuf(eval_env_t *env)
    _dbgtrc("NEWBUF %lX",buf);
   }
 
-  valaux(buf,env->bufs);
+  valnext(buf,env->bufs);
   env->bufs = buf;
   env->bufs_list_len++;
   return buf;
@@ -186,11 +187,11 @@ static val_t addstk(eval_env_t *env)
 {
   val_t stk;
  _dbgtrc("ADDING STK");
-  gccycle(env);
+  gccycle(env,0);
   if (env->stks_free != valnil) {
     stk = env->stks_free;
    _dbgtrc("RECYCLING %lX (s:%d c:%d)",buf,valsize(stk),valcount(stk));
-    env->stks_free = valaux(stk);
+    env->stks_free = valnext(stk);
     valcount(stk,0);
   }
   else {
@@ -198,7 +199,7 @@ static val_t addstk(eval_env_t *env)
    _dbgtrc("NEWSTK %lX",stk);
   }
 
-  valaux(stk,env->stks);
+  valnext(stk,env->stks);
   env->stks = stk;
   env->stks_list_len++;
  _dbgtrc("Use STK: %lX",stk);
@@ -212,9 +213,9 @@ static void assignvar(eval_env_t *env)
   int32_t n=-1;
 
   a = valtop(env->stack,-2); // value
-  b = valtop(env->stack);    // variable
+  b = valtop(env->stack);    // variable address (an int)
 
-  if (isstring(b)) {
+  if (isstring(b)) { // but if it's a string, let's search for varname
    _dbgtrc("ASSIGN FINDVAR: %lX",b);
     n = findvar(env, b);
   }
@@ -223,6 +224,7 @@ static void assignvar(eval_env_t *env)
   if (!valisint(b)) die("Can't assign");
 
   valdrop(env->stack); // remove variable name
+
   valset(env->vars_val,b,a);
 }
 
@@ -247,8 +249,8 @@ static void jamvar(eval_env_t *env)
  _dbgtrc("JAM ARR2: %lX (%d)",stk, valcount(stk));
 
   valpush(stk,a);
-
   valdrop(env->stack); // remove variable name
+
   valset(env->vars_val,b,stk);
 }
 
@@ -611,15 +613,15 @@ val_t kneval(ast_t astcur)
   if (env.vars == valnil) {
     env.vars = valvec(5);
   }
-
   if (valisvec(env.vars)) {
     env.vars_val = valvec(valsize(env.vars));
     val_t *a = valarray(env.vars_val);
     if (a == NULL) die("Unexpected!");
-    for (int k=0; k<valcount(env.vars); k++) 
+    valcount(env.vars_val,valcount(env.vars));
+    for (int k=0; k<valcount(env.vars_val); k++) 
       a[k] = valnil;
   }
-
+ _dbgtrc("EVAL START: vars: %d (%d)",valcount(env.vars_val),valcount(env.vars));
   while (curnode != ASTNULL ) {
     if (astisnodeentry(astcur,curnode)) {
       start = astnodefrom(astcur,curnode);
@@ -656,6 +658,9 @@ val_t kneval(ast_t astcur)
           default:   die("unknown function");
         }
       }
+      else if (astnodeis(astcur,curnode,gc)) {
+        gccycle(&env,1); // Force collection
+      }
       else if (astnodeis(astcur,curnode,assign)) {
         assignvar(&env);
       }
@@ -673,7 +678,7 @@ val_t kneval(ast_t astcur)
         valdrop(env.stack);
        _dbgtrc("WHILE_CHECK drop: %lX",a);
         if (isfalse(a)) curnode = astlast(astcur,curnode);
-        else valdrop(env.stack);
+        else { valdrop(env.stack); }
       }
       else if (astnodeis(astcur,curnode,while_end)) {
        _dbgtrc("WHILE_end drop: %lX",valtop(env.stack));
@@ -734,24 +739,26 @@ val_t kneval(ast_t astcur)
   
  _dbgtrc("FINAL DEPTH: %d",valcount(env.stack));
 
+  // vars will be freed in the main.
+
   valfree(env.vars_val);
   valfree(env.vars_names);
   valfree(env.stack);
   
   for (val_t p = env.bufs; p != valnil; p=env.bufs ) {
-    env.bufs = valaux(p);
+    env.bufs = valnext(p);
     valfree(p);
   }
   for (val_t p = env.bufs_free; p != valnil; p=env.bufs_free ) {
-    env.bufs_free = valaux(p);
+    env.bufs_free = valnext(p);
     valfree(p);
   }
   for (val_t p = env.stks; p != valnil; p=env.stks ) {
-    env.stks = valaux(p);
+    env.stks = valnext(p);
     valfree(p);
   }
   for (val_t p = env.stks_free; p != valnil; p=env.stks_free ) {
-    env.stks_free = valaux(p);
+    env.stks_free = valnext(p);
     valfree(p);
   }
 
